@@ -1,0 +1,8 @@
+.env
+cards.txt
+bot.db
+*.db
+__pycache__/
+*.pyc
+.venv/
+woosh_browser_profile/
