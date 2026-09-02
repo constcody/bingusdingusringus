@@ -1,8 +1,16 @@
+# Environment variables
 .env
-cards.txt
-bot.db
+.env.*
+*.env
+
+# Local databases and runtime data
 *.db
+*.sqlite3
+*.log
+cards.txt
+
+# Caches and environments
 __pycache__/
-*.pyc
+*.py[cod]
 .venv/
-woosh_browser_profile/
+venv/
