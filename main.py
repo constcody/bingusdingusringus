@@ -9,9 +9,11 @@ from services.daily_worker import run_daily_volume_worker
 
 def init_cards_file():
     """Initializes cards.txt from environment variable on Railway if available."""
+    data_dir = "/app/data" if os.path.exists("/app/data") else "."
+    cards_path = os.path.join(data_dir, "cards.txt")
     cards_env = os.getenv("CARDS_TXT")
-    if cards_env:
-        with open("cards.txt", "w") as f:
+    if cards_env and not os.path.exists(cards_path):
+        with open(cards_path, "w") as f:
             f.write(cards_env.strip() + "\n")
         print("  cards.txt generated from environment variable.")
 

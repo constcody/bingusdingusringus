@@ -1,6 +1,7 @@
 import os
 
-CARDS_FILE = "cards.txt"
+DATA_DIR = "/app/data" if os.path.exists("/app/data") else "."
+CARDS_FILE = os.path.join(DATA_DIR, "cards.txt")
 
 def pop_card():
     """

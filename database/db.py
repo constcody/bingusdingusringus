@@ -1,6 +1,8 @@
+import os
 import aiosqlite
 
-DB_FILE = "bot.db"
+DATA_DIR = "/app/data" if os.path.exists("/app/data") else "."
+DB_FILE = os.path.join(DATA_DIR, "bot.db")
 
 async def init_db():
     async with aiosqlite.connect(DB_FILE) as db:
