@@ -12,14 +12,10 @@ from database.db import get_balance, adjust_balance
 
 ACTIVE_POLLS = set()
 
-# (Optional) Hardcode your user ID here if you want an absolute fallback
 OWNER_IDS = []
-
-# (Optional) Role ID that can manage balances
 ADMIN_ROLE_ID = None
 
 def is_authorized_admin(interaction: discord.Interaction) -> bool:
-    """Checks if the user has Discord admin perms, the admin role, or is owner."""
     if interaction.user.id in OWNER_IDS:
         return True
     if ADMIN_ROLE_ID and any(role.id == ADMIN_ROLE_ID for role in getattr(interaction.user, "roles", [])):
@@ -36,7 +32,6 @@ async def poll_payment_status(bot: commands.Bot, payment_id: str, discord_id: st
     }
     print(f"[Polling Started] Tracking Payment ID {payment_id} for user {discord_id}...")
 
-    # Poll every 8 seconds for up to 30 minutes (225 checks)
     for i in range(225):
         await asyncio.sleep(8)
         try:
@@ -89,14 +84,14 @@ class WalletCog(commands.Cog):
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @app_commands.command(name="deposit", description="Deposit credits using Crypto (SOL)")
-    @app_commands.describe(amount="Deposit amount in USD (minimum $5.00)")
+    @app_commands.command(name="deposit", description="Deposit credits using Crypto")
+    @app_commands.describe(amount="Deposit amount in USD")
     async def deposit(self, interaction: discord.Interaction, amount: float):
         if amount < 5.00:
             await interaction.response.send_message("❌ Minimum deposit is $5.00.", ephemeral=True)
             return
 
-        amount_cents = int(round(amount * 100))
+        amount_cents = int(amount * 100)
         await interaction.response.defer(ephemeral=True)
 
         headers = {
@@ -125,14 +120,12 @@ class WalletCog(commands.Cog):
                             await interaction.followup.send(f"❌ API Error: `{data}`", ephemeral=True)
                             return
 
-                        # Launch background poller
                         task = asyncio.create_task(
                             poll_payment_status(self.bot, payment_id, str(interaction.user.id), amount_cents)
                         )
                         ACTIVE_POLLS.add(task)
                         task.add_done_callback(ACTIVE_POLLS.discard)
 
-                        # Generate QR code
                         qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={urllib.parse.quote(pay_address)}"
 
                         embed = discord.Embed(title="⚡ Solana (SOL) Deposit", color=discord.Color.gold())
@@ -153,55 +146,67 @@ class WalletCog(commands.Cog):
     @app_commands.describe(user="The target user", amount="Dollar amount to add (e.g. 25.00)")
     @app_commands.default_permissions(administrator=True)
     async def add_balance_cmd(self, interaction: discord.Interaction, user: discord.User, amount: float):
+        await interaction.response.defer(ephemeral=True)
+
         if not is_authorized_admin(interaction):
-            await interaction.response.send_message("❌ You do not have permission to use this command.", ephemeral=True)
+            await interaction.followup.send("❌ You do not have permission to use this command.", ephemeral=True)
             return
 
         if amount <= 0:
-            await interaction.response.send_message("❌ Amount must be greater than $0.00.", ephemeral=True)
+            await interaction.followup.send("❌ Amount must be greater than $0.00.", ephemeral=True)
             return
 
-        amount_cents = int(round(amount * 100))
-        new_balance_cents = await adjust_balance(str(user.id), amount_cents)
-        new_balance_usd = new_balance_cents / 100.0
+        try:
+            amount_cents = int(round(amount * 100))
+            new_balance_cents = await adjust_balance(str(user.id), amount_cents)
+            new_balance_usd = new_balance_cents / 100.0
 
-        embed = discord.Embed(
-            title="✅ Balance Added",
-            color=discord.Color.green()
-        )
-        embed.set_author(name=user.display_name, icon_url=user.display_avatar.url)
-        embed.add_field(name="User", value=user.mention, inline=True)
-        embed.add_field(name="Amount Added", value=f"+${amount:.2f}", inline=True)
-        embed.add_field(name="New Total", value=f"**${new_balance_usd:.2f}**", inline=True)
+            embed = discord.Embed(
+                title="✅ Balance Added",
+                color=discord.Color.green()
+            )
+            embed.set_author(name=user.display_name, icon_url=user.display_avatar.url)
+            embed.add_field(name="User", value=user.mention, inline=True)
+            embed.add_field(name="Amount Added", value=f"+${amount:.2f}", inline=True)
+            embed.add_field(name="New Total", value=f"**${new_balance_usd:.2f}**", inline=True)
 
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+            await interaction.followup.send(embed=embed, ephemeral=True)
+        except Exception as e:
+            print(f"[AddBalance Error]: {e}")
+            await interaction.followup.send(f"❌ Failed to update balance: `{e}`", ephemeral=True)
 
     @app_commands.command(name="removebalance", description="Deduct funds from a user's wallet (Admin)")
     @app_commands.describe(user="The target user", amount="Dollar amount to deduct (e.g. 15.00)")
     @app_commands.default_permissions(administrator=True)
     async def remove_balance_cmd(self, interaction: discord.Interaction, user: discord.User, amount: float):
+        await interaction.response.defer(ephemeral=True)
+
         if not is_authorized_admin(interaction):
-            await interaction.response.send_message("❌ You do not have permission to use this command.", ephemeral=True)
+            await interaction.followup.send("❌ You do not have permission to use this command.", ephemeral=True)
             return
 
         if amount <= 0:
-            await interaction.response.send_message("❌ Amount must be greater than $0.00.", ephemeral=True)
+            await interaction.followup.send("❌ Amount must be greater than $0.00.", ephemeral=True)
             return
 
-        amount_cents = -int(round(amount * 100))
-        new_balance_cents = await adjust_balance(str(user.id), amount_cents)
-        new_balance_usd = new_balance_cents / 100.0
+        try:
+            amount_cents = -int(round(amount * 100))
+            new_balance_cents = await adjust_balance(str(user.id), amount_cents)
+            new_balance_usd = new_balance_cents / 100.0
 
-        embed = discord.Embed(
-            title="🔻 Balance Deducted",
-            color=discord.Color.red()
-        )
-        embed.set_author(name=user.display_name, icon_url=user.display_avatar.url)
-        embed.add_field(name="User", value=user.mention, inline=True)
-        embed.add_field(name="Amount Deducted", value=f"-${amount:.2f}", inline=True)
-        embed.add_field(name="New Total", value=f"**${new_balance_usd:.2f}**", inline=True)
+            embed = discord.Embed(
+                title="🔻 Balance Deducted",
+                color=discord.Color.red()
+            )
+            embed.set_author(name=user.display_name, icon_url=user.display_avatar.url)
+            embed.add_field(name="User", value=user.mention, inline=True)
+            embed.add_field(name="Amount Deducted", value=f"-${amount:.2f}", inline=True)
+            embed.add_field(name="New Total", value=f"**${new_balance_usd:.2f}**", inline=True)
 
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+            await interaction.followup.send(embed=embed, ephemeral=True)
+        except Exception as e:
+            print(f"[RemoveBalance Error]: {e}")
+            await interaction.followup.send(f"❌ Failed to update balance: `{e}`", ephemeral=True)
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(WalletCog(bot))

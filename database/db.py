@@ -50,13 +50,14 @@ async def get_balance(discord_id: str) -> int:
             row = await cur.fetchone()
             return row[0] if row else 0
 
-async def adjust_balance(discord_id: str, amount_cents: int):
+async def adjust_balance(discord_id: str, amount_cents: int) -> int:
     async with aiosqlite.connect(DB_FILE) as db:
         await db.execute("""
             INSERT INTO users (discord_id, balance_cents) VALUES (?, ?)
             ON CONFLICT(discord_id) DO UPDATE SET balance_cents = balance_cents + ?
         """, (str(discord_id), max(0, amount_cents), amount_cents))
         await db.commit()
+    return await get_balance(str(discord_id))
 
 async def log_order(job_id: str, discord_id: str, total_cents: int, status: str, tracking_url: str = None):
     async with aiosqlite.connect(DB_FILE) as db:
@@ -76,10 +77,6 @@ async def queue_for_refund(job_id: str, discord_id: str, tracking_url: str, emai
         await db.commit()
 
 async def get_daily_volume():
-    """
-    Returns (total_cents, order_count) for placed orders created today.
-    Uses SQLite's date('now', 'localtime') for daily filtering.
-    """
     async with aiosqlite.connect(DB_FILE) as db:
         async with db.execute("""
             SELECT 
