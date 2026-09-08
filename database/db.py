@@ -74,3 +74,22 @@ async def queue_for_refund(job_id: str, discord_id: str, tracking_url: str, emai
             VALUES (?, ?, ?, ?, ?, 'tracking')
         """, (job_id, str(discord_id), tracking_url, email, password))
         await db.commit()
+
+async def get_daily_volume():
+    """
+    Returns (total_cents, order_count) for placed orders created today.
+    Uses SQLite's date('now', 'localtime') for daily filtering.
+    """
+    async with aiosqlite.connect(DB_FILE) as db:
+        async with db.execute("""
+            SELECT 
+                COALESCE(SUM(total_cents), 0),
+                COUNT(*)
+            FROM orders 
+            WHERE status = 'placed' 
+              AND DATE(created_at, 'localtime') = DATE('now', 'localtime')
+        """) as cur:
+            row = await cur.fetchone()
+            total_cents = row[0] if row else 0
+            order_count = row[1] if row else 0
+            return total_cents, order_count

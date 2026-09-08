@@ -4,6 +4,7 @@ from database.db import init_db
 from bot.client import bot
 from services.zelle_worker import check_zelle_emails
 from services.refund_worker import run_refund_worker
+from services.daily_worker import run_daily_volume_worker
 
 async def run_bot():
     if not settings.DISCORD_BOT_TOKEN:
@@ -13,11 +14,12 @@ async def run_bot():
 
 async def main():
     await init_db()
-    print("✨ Database initialized.")
+    print("  Database initialized.")
     await asyncio.gather(
         run_bot(),
         check_zelle_emails(bot),
-        run_refund_worker(bot)
+        run_refund_worker(bot),
+        run_daily_volume_worker(bot)
     )
 
 if __name__ == "__main__":

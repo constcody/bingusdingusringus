@@ -1,1 +1,1 @@
-echo "# bingusdingusringus" > README.md
+# bingusdingusringus

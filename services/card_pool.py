@@ -3,7 +3,10 @@ import os
 CARDS_FILE = "cards.txt"
 
 def pop_card():
-    """Pops the top card from cards.txt and deletes it from the file."""
+    """
+    Pops a card from cards.txt.
+    Allows each card to be used twice before removing it from the file.
+    """
     if not os.path.exists(CARDS_FILE):
         return None
 
@@ -20,17 +23,26 @@ def pop_card():
             continue
 
         if not card_found:
-            # Handle comma, pipe, or space delimiters
-            delim = "," if "," in line else ("|" if "|" in line else " ")
-            parts = [p.strip() for p in line.split(delim)]
+            raw_line = line
+            use_count = 0
+            # Track uses via trailing suffix: ;uses=N
+            if ";uses=" in line:
+                parts_use = line.split(";uses=")
+                raw_line = parts_use[0].strip()
+                try:
+                    use_count = int(parts_use[1].strip())
+                except ValueError:
+                    use_count = 0
+
+            delim = "," if "," in raw_line else ("|" if "|" in raw_line else " ")
+            parts = [p.strip() for p in raw_line.split(delim)]
 
             if len(parts) >= 4:
                 card_number = parts[0]
-                exp_raw = parts[1] # e.g. "08/30" or "08,30"
+                exp_raw = parts[1]
                 cvv = parts[2]
                 zip_code = parts[3] if len(parts) > 3 else "90250"
 
-                # Parse MM/YY safely
                 if "/" in exp_raw:
                     exp_month, exp_year = exp_raw.split("/")
                 else:
@@ -45,7 +57,12 @@ def pop_card():
                     "zip": zip_code
                 }
                 card_found = True
-                continue  # Skip adding so it is removed from the file
+
+                use_count += 1
+                # Keep the card in the file if used less than 2 times
+                if use_count < 2:
+                    remaining_lines.append(f"{raw_line};uses={use_count}")
+                continue
 
         remaining_lines.append(line)
 
