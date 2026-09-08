@@ -74,14 +74,14 @@ class OrderModal(Modal):
                         or str(data)
                     )
                     await interaction.followup.send(
-                        f"  Error creating draft: `{error_msg}`",
+                        f"❌ Error creating draft: `{error_msg}`",
                         ephemeral=True
                     )
                     return
 
                 job_id = data.get("job_id")
                 await interaction.followup.send(
-                    "  Pricing cart and applying promotions...",
+                    "⏳ Pricing cart and applying promotions...",
                     ephemeral=True
                 )
 
@@ -94,14 +94,12 @@ class OrderModal(Modal):
                     current_status = job_state.get("status")
 
                     if current_status == "draft_ready":
-                        # Fetch the user's current balance from the database
+                        # Fetch user balance
                         user_balance_cents = await get_balance(str(interaction.user.id))
                         user_balance_usd = user_balance_cents / 100
-                        cart = job_state.get("cart", {})
-                        base_total_cents = cart.get("client_total_cents", 0)
 
-                        # Add $1.00 (100 cents) service/processing upcharge
-                        total_cents = base_total_cents + 100
+                        cart = job_state.get("cart", {})
+                        total_cents = cart.get("client_total_cents", 0)
                         final_total = total_cents / 100
                         subtotal = cart.get("subtotal_cents", 0) / 100
                         discount = cart.get("promo_discount_cents", 0) / 100
@@ -111,37 +109,37 @@ class OrderModal(Modal):
                             if self.fulfillment == "delivery"
                             else 0.00
                         )
+
                         items = cart.get("items", [])
                         item_lines = []
-
                         for it in items:
                             name = it.get("name", "Item")
                             unit_price = it.get("unit_price_cents", 0) / 100
                             qty = it.get("quantity", 1)
                             item_lines.append(
-                                f"  **{name}** (x{qty}) `${unit_price:.2f}`"
+                                f"• **{name}** (x{qty}) `${unit_price:.2f}`"
                             )
 
                         items_overview = (
                             "\n".join(item_lines)
                             if item_lines
-                            else "  *Cart items loaded*"
+                            else "*Cart items loaded*"
                         )
 
                         embed = discord.Embed(
                             title=(
-                                f"  {cart.get('store_name', 'DoorDash')} "
+                                f"🛒 {cart.get('store_name', 'DoorDash')} "
                                 f"({self.fulfillment.title()})"
                             ),
                             color=discord.Color.blue()
                         )
                         embed.add_field(
-                            name="  Delivery Address",
+                            name="📍 Delivery Address",
                             value=self.address.value.strip(),
                             inline=False
                         )
                         embed.add_field(
-                            name="  Items Ordered",
+                            name="📝 Items Ordered",
                             value=items_overview,
                             inline=False
                         )
@@ -166,11 +164,6 @@ class OrderModal(Modal):
                                 value=f"${tip_amount:.2f}",
                                 inline=True
                             )
-                        embed.add_field(
-                            name="Service Fee",
-                            value="$1.00",
-                            inline=True
-                        )
                         embed.add_field(
                             name="Total Due",
                             value=f"**${final_total:.2f}**",
@@ -208,19 +201,19 @@ class OrderModal(Modal):
                             .get("message", "Job setup failed.")
                         )
                         await interaction.followup.send(
-                            f"  Failed to build draft: `{err}`",
+                            f"❌ Failed to build draft: `{err}`",
                             ephemeral=True
                         )
                         return
 
                 await interaction.followup.send(
-                    "  Timed out waiting for draft to build.",
+                    "⌛ Timed out waiting for draft to build.",
                     ephemeral=True
                 )
 
         except Exception as e:
             print(f"[Order Modal Error]: {e}")
             await interaction.followup.send(
-                f"  An error occurred: `{str(e)}`",
+                f"❌ An error occurred: `{str(e)}`",
                 ephemeral=True
             )
