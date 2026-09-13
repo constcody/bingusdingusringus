@@ -6,10 +6,12 @@ from services import woolix
 from bot.views.order_views import OrderConfirmView
 from database.db import get_balance
 
+
 class OrderModal(Modal):
     def __init__(self, fulfillment: str = "delivery"):
         super().__init__(title=f"Place {fulfillment.title()} Order")
         self.fulfillment = fulfillment
+
         self.cart_url = TextInput(
             label="DoorDash Group Cart Link",
             placeholder="https://drd.sh/...",
@@ -25,8 +27,10 @@ class OrderModal(Modal):
             placeholder="Leave blank for default",
             required=False
         )
+
         self.add_item(self.cart_url)
         self.add_item(self.address)
+
         if self.fulfillment == "delivery":
             self.tip = TextInput(
                 label="Dasher Tip ($)",
@@ -36,6 +40,7 @@ class OrderModal(Modal):
             self.add_item(self.tip)
         else:
             self.tip = None
+
         self.note = TextInput(
             label="Special Instructions",
             placeholder="Leave at door / Don't ring bell",
@@ -45,9 +50,11 @@ class OrderModal(Modal):
         self.add_item(self.order_name)
 
     async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
+        # Ephemeral in servers, permanent in DMs
+        is_ephemeral = interaction.guild is not None
+        await interaction.response.defer(ephemeral=is_ephemeral)
+
         tip_cents = 0
-        
         if self.fulfillment == "delivery" and self.tip and self.tip.value:
             try:
                 tip_cents = int(float(self.tip.value.strip()) * 100)
@@ -74,15 +81,15 @@ class OrderModal(Modal):
                         or str(data)
                     )
                     await interaction.followup.send(
-                        f"❌ Error creating draft: `{error_msg}`",
-                        ephemeral=True
+                        f"  Error creating draft: `{error_msg}`",
+                        ephemeral=is_ephemeral
                     )
                     return
 
                 job_id = data.get("job_id")
                 await interaction.followup.send(
-                    "⏳ Pricing cart and applying promotions...",
-                    ephemeral=True
+                    "  Pricing cart and applying promotions...",
+                    ephemeral=is_ephemeral
                 )
 
                 for _ in range(40):
@@ -117,7 +124,7 @@ class OrderModal(Modal):
                             unit_price = it.get("unit_price_cents", 0) / 100
                             qty = it.get("quantity", 1)
                             item_lines.append(
-                                f"• **{name}** (x{qty}) `${unit_price:.2f}`"
+                                f"  **{name}** (x{qty}) `${unit_price:.2f}`"
                             )
 
                         items_overview = (
@@ -128,18 +135,18 @@ class OrderModal(Modal):
 
                         embed = discord.Embed(
                             title=(
-                                f"🛒 {cart.get('store_name', 'DoorDash')} "
+                                f"  {cart.get('store_name', 'DoorDash')} "
                                 f"({self.fulfillment.title()})"
                             ),
                             color=discord.Color.blue()
                         )
                         embed.add_field(
-                            name="📍 Delivery Address",
+                            name="  Delivery Address",
                             value=self.address.value.strip(),
                             inline=False
                         )
                         embed.add_field(
-                            name="📝 Items Ordered",
+                            name="  Items Ordered",
                             value=items_overview,
                             inline=False
                         )
@@ -186,7 +193,7 @@ class OrderModal(Modal):
                         await interaction.followup.send(
                             embed=embed,
                             view=view,
-                            ephemeral=True
+                            ephemeral=is_ephemeral
                         )
                         return
 
@@ -201,19 +208,18 @@ class OrderModal(Modal):
                             .get("message", "Job setup failed.")
                         )
                         await interaction.followup.send(
-                            f"❌ Failed to build draft: `{err}`",
-                            ephemeral=True
+                            f"  Failed to build draft: `{err}`",
+                            ephemeral=is_ephemeral
                         )
                         return
 
                 await interaction.followup.send(
-                    "⌛ Timed out waiting for draft to build.",
-                    ephemeral=True
+                    "  Timed out waiting for draft to build.",
+                    ephemeral=is_ephemeral
                 )
-
         except Exception as e:
             print(f"[Order Modal Error]: {e}")
             await interaction.followup.send(
-                f"❌ An error occurred: `{str(e)}`",
-                ephemeral=True
+                f"  An error occurred: `{str(e)}`",
+                ephemeral=is_ephemeral
             )

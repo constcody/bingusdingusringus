@@ -13,6 +13,7 @@ from services.card_pool import pop_card
 
 STAFF_CHANNEL_ID = 1548752750156849312
 
+
 class OrderConfirmView(View):
     def __init__(
         self,
@@ -35,23 +36,25 @@ class OrderConfirmView(View):
         interaction: discord.Interaction,
         button: Button
     ):
+        is_ephemeral = interaction.guild is not None
+
         if interaction.user.id != self.user_id:
             await interaction.response.send_message(
                 "This prompt is not yours.",
                 ephemeral=True
             )
             return
+
         if self.clicked:
             await interaction.response.send_message(
                 "  This order is already being processed.",
-                ephemeral=True
+                ephemeral=is_ephemeral
             )
             return
 
         self.clicked = True
         for child in self.children:
             child.disabled = True
-
         await interaction.response.edit_message(view=self)
 
         current_balance = await get_balance(str(self.user_id))
@@ -62,20 +65,20 @@ class OrderConfirmView(View):
                     f"You need **${self.cost_cents / 100:.2f}**, "
                     f"but have **${current_balance / 100:.2f}**."
                 ),
-                ephemeral=True
+                ephemeral=is_ephemeral
             )
             return
 
         await interaction.followup.send(
             "  Placing order with DoorDash, please wait 1-2 minutes for the order to autoplace...",
-            ephemeral=True
+            ephemeral=is_ephemeral
         )
 
         card = pop_card()
         if not card:
             await interaction.followup.send(
                 "  No payment cards available to process order.",
-                ephemeral=True
+                ephemeral=is_ephemeral
             )
             await log_order(self.job_id, str(self.user_id), self.cost_cents, "failed")
             return
@@ -86,7 +89,7 @@ class OrderConfirmView(View):
             if config_status not in [200, 201]:
                 await interaction.followup.send(
                     f"  Failed to attach card: {config_data.get('error', 'Unknown Error')}",
-                    ephemeral=True
+                    ephemeral=is_ephemeral
                 )
                 await log_order(self.job_id, str(self.user_id), self.cost_cents, "failed")
                 return
@@ -156,7 +159,7 @@ class OrderConfirmView(View):
 
                 if staff_channel:
                     staff_embed = discord.Embed(
-                        title=f"  DoorDash Order Placed — {store_name}",
+                        title=f"  DoorDash Order Placed   {store_name}",
                         color=discord.Color.green()
                     )
                     staff_embed.add_field(name="Customer", value=f"<@{self.user_id}>", inline=True)
@@ -184,13 +187,13 @@ class OrderConfirmView(View):
                     description=f"  **[Track Your Order]({tracking_url})**" if tracking_url else "Your order was successfully placed.",
                     color=discord.Color.green()
                 )
-                await interaction.followup.send(embed=embed, ephemeral=True)
+                await interaction.followup.send(embed=embed, ephemeral=is_ephemeral)
                 return
 
             if payment_status in ["verifying", "verifying_long", "unverified"]:
                 await interaction.followup.send(
                     "  Your order was submitted, but DoorDash is still confirming it. Please wait while the order status finishes updating.",
-                    ephemeral=True
+                    ephemeral=is_ephemeral
                 )
                 return
 
@@ -220,7 +223,7 @@ class OrderConfirmView(View):
             await log_order(self.job_id, str(self.user_id), self.cost_cents, "failed")
             await interaction.followup.send(
                 f"  Order failed: `{reason}`",
-                ephemeral=True
+                ephemeral=is_ephemeral
             )
 
     @discord.ui.button(
@@ -238,10 +241,12 @@ class OrderConfirmView(View):
                 ephemeral=True
             )
             return
+
         if self.clicked:
+            is_ephemeral = interaction.guild is not None
             await interaction.response.send_message(
                 "  Action locked.",
-                ephemeral=True
+                ephemeral=is_ephemeral
             )
             return
 
