@@ -11,7 +11,7 @@ from database.db import (
 from services import woolix
 from services.card_pool import pop_card
 
-STAFF_CHANNEL_ID = 1544842788674216026
+STAFF_CHANNEL_ID = 1548752750156849312
 
 class OrderConfirmView(View):
     def __init__(

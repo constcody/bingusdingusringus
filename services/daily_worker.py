@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo
 import discord
 from database.db import get_daily_volume
 
-DAILY_CHANNEL_ID = 1546910021701345421
+DAILY_CHANNEL_ID = 1548752630417858740
 TIMEZONE = ZoneInfo("America/New_York")  # EST/EDT
 
 async def run_daily_volume_worker(bot):
