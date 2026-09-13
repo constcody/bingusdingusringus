@@ -3,6 +3,7 @@ from discord import app_commands
 from discord.ext import commands
 from discord.ui import Button, View
 from bot.views.order_modal import OrderModal
+from database.db import get_user_address
 
 
 class FulfillmentSelectView(View):
@@ -11,11 +12,17 @@ class FulfillmentSelectView(View):
 
     @discord.ui.button(label="Delivery", emoji="🚗", style=discord.ButtonStyle.primary)
     async def delivery_button(self, interaction: discord.Interaction, button: Button):
-        await interaction.response.send_modal(OrderModal(fulfillment="delivery"))
+        saved_address = await get_user_address(str(interaction.user.id))
+        await interaction.response.send_modal(
+            OrderModal(fulfillment="delivery", default_address=saved_address)
+        )
 
     @discord.ui.button(label="Pickup", emoji="🛍️", style=discord.ButtonStyle.secondary)
     async def pickup_button(self, interaction: discord.Interaction, button: Button):
-        await interaction.response.send_modal(OrderModal(fulfillment="pickup"))
+        saved_address = await get_user_address(str(interaction.user.id))
+        await interaction.response.send_modal(
+            OrderModal(fulfillment="pickup", default_address=saved_address)
+        )
 
 
 class OrdersCog(commands.Cog):
@@ -24,11 +31,9 @@ class OrdersCog(commands.Cog):
 
     @app_commands.command(name="order", description="Start a new DoorDash discounted order")
     @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
-    @app_commands.allowed_installs(guilds=True, users=True)
+    @app_commands.allowed_installs(guilds=True, users=False)
     async def order(self, interaction: discord.Interaction):
-        # Ephemeral in servers, permanent/non-dismissible in DMs
         is_ephemeral = interaction.guild is not None
-
         view = FulfillmentSelectView()
         await interaction.response.send_message(
             "Select your fulfillment method to begin:",

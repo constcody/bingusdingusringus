@@ -4,11 +4,11 @@ import discord
 from discord.ui import Modal, TextInput
 from services import woolix
 from bot.views.order_views import OrderConfirmView
-from database.db import get_balance
+from database.db import get_balance, set_user_address
 
 
 class OrderModal(Modal):
-    def __init__(self, fulfillment: str = "delivery"):
+    def __init__(self, fulfillment: str = "delivery", default_address: str = ""):
         super().__init__(title=f"Place {fulfillment.title()} Order")
         self.fulfillment = fulfillment
 
@@ -20,6 +20,7 @@ class OrderModal(Modal):
         self.address = TextInput(
             label="Delivery Address",
             placeholder="123 Main St, New York, NY 10001",
+            default=default_address if default_address else None,
             required=True
         )
         self.order_name = TextInput(
@@ -34,7 +35,7 @@ class OrderModal(Modal):
         if self.fulfillment == "delivery":
             self.tip = TextInput(
                 label="Dasher Tip ($)",
-                default="2.00",
+                default="0.00",
                 required=False
             )
             self.add_item(self.tip)
@@ -50,23 +51,26 @@ class OrderModal(Modal):
         self.add_item(self.order_name)
 
     async def on_submit(self, interaction: discord.Interaction):
-        # Ephemeral in servers, permanent in DMs
         is_ephemeral = interaction.guild is not None
         await interaction.response.defer(ephemeral=is_ephemeral)
+
+        # Save the address for future orders
+        submitted_address = self.address.value.strip()
+        await set_user_address(str(interaction.user.id), submitted_address)
 
         tip_cents = 0
         if self.fulfillment == "delivery" and self.tip and self.tip.value:
             try:
                 tip_cents = int(float(self.tip.value.strip()) * 100)
             except ValueError:
-                tip_cents = 200
+                tip_cents = 0
 
         try:
             async with aiohttp.ClientSession() as session:
                 data, status = await woolix.create_draft_job(
                     session,
                     group_cart=self.cart_url.value.strip(),
-                    address=self.address.value.strip(),
+                    address=submitted_address,
                     fulfillment=self.fulfillment,
                     unit=None,
                     tip_cents=tip_cents,
@@ -101,7 +105,6 @@ class OrderModal(Modal):
                     current_status = job_state.get("status")
 
                     if current_status == "draft_ready":
-                        # Fetch user balance
                         user_balance_cents = await get_balance(str(interaction.user.id))
                         user_balance_usd = user_balance_cents / 100
 
@@ -142,7 +145,7 @@ class OrderModal(Modal):
                         )
                         embed.add_field(
                             name="  Delivery Address",
-                            value=self.address.value.strip(),
+                            value=submitted_address,
                             inline=False
                         )
                         embed.add_field(

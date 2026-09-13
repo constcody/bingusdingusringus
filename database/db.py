@@ -4,15 +4,23 @@ import aiosqlite
 DATA_DIR = "/app/data" if os.path.exists("/app/data") else "."
 DB_FILE = os.path.join(DATA_DIR, "bot.db")
 
+
 async def init_db():
     async with aiosqlite.connect(DB_FILE) as db:
         await db.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 discord_id TEXT PRIMARY KEY,
                 balance_cents INTEGER NOT NULL DEFAULT 0,
+                last_address TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        # Safe migration if table already existed without the column
+        try:
+            await db.execute("ALTER TABLE users ADD COLUMN last_address TEXT")
+        except Exception:
+            pass
+
         await db.execute("""
             CREATE TABLE IF NOT EXISTS pending_deposits (
                 ref_code TEXT PRIMARY KEY,
@@ -46,11 +54,29 @@ async def init_db():
         """)
         await db.commit()
 
+
 async def get_balance(discord_id: str) -> int:
     async with aiosqlite.connect(DB_FILE) as db:
         async with db.execute("SELECT balance_cents FROM users WHERE discord_id = ?", (str(discord_id),)) as cur:
             row = await cur.fetchone()
             return row[0] if row else 0
+
+
+async def get_user_address(discord_id: str) -> str:
+    async with aiosqlite.connect(DB_FILE) as db:
+        async with db.execute("SELECT last_address FROM users WHERE discord_id = ?", (str(discord_id),)) as cur:
+            row = await cur.fetchone()
+            return row[0] if row and row[0] else ""
+
+
+async def set_user_address(discord_id: str, address: str):
+    async with aiosqlite.connect(DB_FILE) as db:
+        await db.execute("""
+            INSERT INTO users (discord_id, balance_cents, last_address) VALUES (?, 0, ?)
+            ON CONFLICT(discord_id) DO UPDATE SET last_address = excluded.last_address
+        """, (str(discord_id), address))
+        await db.commit()
+
 
 async def adjust_balance(discord_id: str, amount_cents: int) -> int:
     async with aiosqlite.connect(DB_FILE) as db:
@@ -61,6 +87,7 @@ async def adjust_balance(discord_id: str, amount_cents: int) -> int:
         await db.commit()
     return await get_balance(str(discord_id))
 
+
 async def log_order(job_id: str, discord_id: str, total_cents: int, status: str, tracking_url: str = None):
     async with aiosqlite.connect(DB_FILE) as db:
         await db.execute("""
@@ -70,6 +97,7 @@ async def log_order(job_id: str, discord_id: str, total_cents: int, status: str,
         """, (job_id, str(discord_id), total_cents, status, tracking_url, status, tracking_url))
         await db.commit()
 
+
 async def queue_for_refund(job_id: str, discord_id: str, tracking_url: str, email: str, password: str):
     async with aiosqlite.connect(DB_FILE) as db:
         await db.execute("""
@@ -78,6 +106,7 @@ async def queue_for_refund(job_id: str, discord_id: str, tracking_url: str, emai
         """, (job_id, str(discord_id), tracking_url, email, password))
         await db.commit()
 
+
 async def get_daily_volume():
     async with aiosqlite.connect(DB_FILE) as db:
         async with db.execute("""
@@ -85,7 +114,7 @@ async def get_daily_volume():
                 COALESCE(SUM(total_cents), 0),
                 COUNT(*)
             FROM orders 
-            WHERE status = 'placed' 
+            WHERE status = 'placed'
               AND DATE(created_at, 'localtime') = DATE('now', 'localtime')
         """) as cur:
             row = await cur.fetchone()
