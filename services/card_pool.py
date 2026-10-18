@@ -3,10 +3,11 @@ import os
 DATA_DIR = "/app/data" if os.path.exists("/app/data") else "."
 CARDS_FILE = os.path.join(DATA_DIR, "cards.txt")
 
+
 def pop_card():
     """
     Pops a card from cards.txt.
-    Allows each card to be used twice before removing it from the file.
+    Removes the card from the file immediately after 1 use.
     """
     if not os.path.exists(CARDS_FILE):
         return None
@@ -24,16 +25,8 @@ def pop_card():
             continue
 
         if not card_found:
-            raw_line = line
-            use_count = 0
-            # Track uses via trailing suffix: ;uses=N
-            if ";uses=" in line:
-                parts_use = line.split(";uses=")
-                raw_line = parts_use[0].strip()
-                try:
-                    use_count = int(parts_use[1].strip())
-                except ValueError:
-                    use_count = 0
+            # Strip any legacy ;uses=N suffix if still present in cards.txt
+            raw_line = line.split(";uses=")[0].strip() if ";uses=" in line else line
 
             delim = "," if "," in raw_line else ("|" if "|" in raw_line else " ")
             parts = [p.strip() for p in raw_line.split(delim)]
@@ -58,11 +51,7 @@ def pop_card():
                     "zip": zip_code
                 }
                 card_found = True
-
-                use_count += 1
-                # Keep the card in the file if used less than 2 times
-                if use_count < 2:
-                    remaining_lines.append(f"{raw_line};uses={use_count}")
+                # Do not append to remaining_lines so it is removed after 1 use
                 continue
 
         remaining_lines.append(line)
